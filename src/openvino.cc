@@ -551,10 +551,11 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
       RETURN_IF_ERROR(ParseShape(io, "dims", &dims));
     }
 
-    ov::Shape input_shape;
+    //ov::Shape input_shape;
+    ov::PartialShape input_shape;
     RETURN_IF_OPENVINO_ASSIGN_ERROR(
         input_shape,
-        model_inputs[model_inputs_name_to_index[io_name]].get_shape(),
+        model_inputs[model_inputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from input " + io_name).c_str());
 
     if (reshape_io_layers_) {
@@ -566,10 +567,10 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
           ppp.input(io_name).tensor().set_shape(input_shape),
           std::string("setting shape for " + io_name).c_str());
     } else {
-      RETURN_IF_ERROR(CompareDimsSupported(
-          Name(), io_name,
-          std::vector<size_t>(input_shape.begin(), input_shape.end()), dims,
-          MaxBatchSize(), false /* compare_exact */));
+      //RETURN_IF_ERROR(CompareDimsSupported(
+      //    Name(), io_name,
+      //    std::vector<size_t>(input_shape.begin(), input_shape.end()), dims,
+      //    MaxBatchSize(), false /* compare_exact */));
     }
 
     if (MaxBatchSize()) {
@@ -643,15 +644,16 @@ ModelState::ValidateOutputs()
     } else {
       RETURN_IF_ERROR(ParseShape(io, "dims", &dims));
     }
-    ov::Shape output_shape;
+    //ov::Shape output_shape;
+    ov::PartialShape output_shape;
     RETURN_IF_OPENVINO_ASSIGN_ERROR(
         output_shape,
-        model_outputs[model_outputs_name_to_index[io_name]].get_shape(),
+        model_outputs[model_outputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from output " + io_name).c_str());
-    RETURN_IF_ERROR(CompareDimsSupported(
-        Name(), io_name,
-        std::vector<size_t>(output_shape.begin(), output_shape.end()), dims,
-        MaxBatchSize(), true /* compare_exact */));
+    //RETURN_IF_ERROR(CompareDimsSupported(
+    //    Name(), io_name,
+    //    std::vector<size_t>(output_shape.begin(), output_shape.end()), dims,
+    //    MaxBatchSize(), true /* compare_exact */));
   }
 
   // Model preprocessing
@@ -810,9 +812,10 @@ ModelState::AutoCompleteInputOrOutput(
           "data_type",
           OpenVINOElementToModelConfigDataType(ov_io.get_element_type())));
       // Find shape
-      ov::Shape io_shape;
+      //ov::Shape io_shape;
+      ov::PartialShape io_shape;
       RETURN_IF_OPENVINO_ASSIGN_ERROR(
-          io_shape, ov_io.get_shape(),
+          io_shape, ov_io.get_partial_shape(),
           ("retrieving original shapes from" + std::string(io_json_obj_name) +
            " " + io_name)
               .c_str());
@@ -820,7 +823,8 @@ ModelState::AutoCompleteInputOrOutput(
       triton::common::TritonJson::Value dims(
           ModelConfig(), triton::common::TritonJson::ValueType::ARRAY);
       for (size_t i = (MaxBatchSize() > 0) ? 1 : 0; i < io_shape.size(); i++) {
-        RETURN_IF_ERROR(dims.AppendInt(io_shape[i]));
+        //RETURN_IF_ERROR(dims.AppendInt(io_shape[i]));
+	RETURN_IF_ERROR(dims.AppendInt(io_shape[i].get_interval().get_max_val()));
       }
       RETURN_IF_ERROR(io_json.Add("dims", std::move(dims)));
       // Add individual input/output to new input/output
@@ -1237,6 +1241,15 @@ ModelInstanceState::SetInputTensors(
       batchn_shape[0] = total_batch_size;
     }
 
+    std::string batchn_shape_str = std::to_string(batchn_shape[0]);
+    for (size_t i=1;i<batchn_shape.size();i++) {
+        batchn_shape_str += ", ";
+        batchn_shape_str += std::to_string(batchn_shape[i]);
+    }
+    LOG_MESSAGE(TRITONSERVER_LOG_INFO,
+        (std::string("### ModelInstanceState::SetInputTensors ###  input_name:")
+        + std::string(input_name) + ", batchn_shape:" + batchn_shape_str).c_str());
+
     const int64_t batchn_byte_size = GetByteSize(input_datatype, batchn_shape);
 
     if (batch_pad_size_ != 0) {
@@ -1314,6 +1327,16 @@ ModelInstanceState::ReadOutputTensors(
     ov::Tensor output_tensor = infer_request_.get_tensor(name);
     std::vector<int64_t> output_shape =
         ConvertToSignedShape(output_tensor.get_shape());
+
+    LOG_MESSAGE(
+        TRITONSERVER_LOG_INFO,
+        (std::string("output ") + name
+         + std::string(", shape_size:"
+                     + std::to_string(output_shape.size()) + " ["
+                     + std::to_string(output_shape[0]) + ","
+                     + std::to_string(output_shape[1]) + ","
+                     + std::to_string(output_shape[2]) + ",...], "
+                     )).c_str());
 
     RETURN_IF_ERROR(ValidateOutputBatchSize(&output_shape));
 

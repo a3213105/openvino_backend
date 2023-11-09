@@ -567,10 +567,10 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
           ppp.input(io_name).tensor().set_shape(input_shape),
           std::string("setting shape for " + io_name).c_str());
     } else {
-      //RETURN_IF_ERROR(CompareDimsSupported(
-      //    Name(), io_name,
-      //    std::vector<size_t>(input_shape.begin(), input_shape.end()), dims,
-      //    MaxBatchSize(), false /* compare_exact */));
+//      RETURN_IF_ERROR(CompareDimsSupported(
+//          Name(), io_name,
+//          std::vector<size_t>(input_shape.begin(), input_shape.end()), dims,
+//          MaxBatchSize(), false /* compare_exact */));
     }
 
     if (MaxBatchSize()) {
@@ -811,20 +811,34 @@ ModelState::AutoCompleteInputOrOutput(
       RETURN_IF_ERROR(io_json.AddString(
           "data_type",
           OpenVINOElementToModelConfigDataType(ov_io.get_element_type())));
+      /*
+      if(std::strcmp(io_json_obj_name, "input")==0) {
+          ov::Layout ov_layout = ov::layout::get_layout(ov_io);
+	  std::string layout_str = ov_layout.to_string();
+          LOG_MESSAGE(TRITONSERVER_LOG_WARN,  
+              (io_json_obj_name + 
+	       std::string(" from node: ") + io_name + " got format:"
+	       + ov_layout.to_string()).c_str());
+          RETURN_IF_ERROR(io_json.AddString(
+              "format", ov_layout.to_string()));
+      }
+      */
       // Find shape
-      //ov::Shape io_shape;
+      triton::common::TritonJson::Value dims(
+          ModelConfig(), triton::common::TritonJson::ValueType::ARRAY);
       ov::PartialShape io_shape;
       RETURN_IF_OPENVINO_ASSIGN_ERROR(
           io_shape, ov_io.get_partial_shape(),
-          ("retrieving original shapes from" + std::string(io_json_obj_name) +
-           " " + io_name)
-              .c_str());
-      // Populate dims
-      triton::common::TritonJson::Value dims(
-          ModelConfig(), triton::common::TritonJson::ValueType::ARRAY);
+          ("retrieving original shapes from dynamic " + std::string(io_json_obj_name) +
+           " " + io_name).c_str());
       for (size_t i = (MaxBatchSize() > 0) ? 1 : 0; i < io_shape.size(); i++) {
-        //RETURN_IF_ERROR(dims.AppendInt(io_shape[i]));
-	RETURN_IF_ERROR(dims.AppendInt(io_shape[i].get_interval().get_max_val()));
+          int real = io_shape[i].get_interval().get_max_val();
+          if (real != io_shape[i].get_interval().get_min_val())
+              real = -1;
+	  LOG_MESSAGE(TRITONSERVER_LOG_WARN,
+            (std::string("from node: ") + io_name + " got dims["
+             + std::to_string(i) + "]=" + std::to_string(real)).c_str());
+          RETURN_IF_ERROR(dims.AppendInt(real));
       }
       RETURN_IF_ERROR(io_json.Add("dims", std::move(dims)));
       // Add individual input/output to new input/output

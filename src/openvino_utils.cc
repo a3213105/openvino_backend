@@ -198,21 +198,9 @@ OpenVINOElementToModelConfigDataType(const ov::element::Type& data_type)
 TRITONSERVER_Error*
 CompareDimsSupported(
     const std::string& model_name, const std::string& tensor_name,
-    const std::vector<size_t>& model_shape, const std::vector<int64_t>& dims,
+    const std::vector<int64_t>& model_shape, const std::vector<int64_t>& dims,
     const int max_batch_size, const bool compare_exact)
 {
-  // TODO: OpenVINO backend does not support the dynamic shapes as of now.
-  // We can use RESIZE_BILINEAR preProcess in InputInfo to support dynamic
-  // shapes in future.
-//  for (const auto& dim : dims) {
-//    RETURN_ERROR_IF_TRUE(
-//        (dim == -1), TRITONSERVER_ERROR_INVALID_ARG,
-//        std::string("model '") + model_name + "', tensor '" + tensor_name +
-//            "': provides -1 dim (shape " + ShapeToString(dims) +
-//            "), openvino "
-//            "currently does not support dynamic shapes.");
-//  }
-
   // If the model configuration expects batching support in the model,
   // then the openvino first dimension will be reshaped hence should not
   // be compared.
@@ -244,7 +232,7 @@ CompareDimsSupported(
         std::string("model '") + model_name + "', tensor '" + tensor_name +
             "': the model expects " + std::to_string(model_shape.size()) +
             " dimensions (shape " +
-            ShapeToString(ConvertToSignedShape(model_shape)) +
+            ShapeToString(model_shape) +
             ") but the model configuration specifies " +
             std::to_string(full_dims.size()) +
             " dimensions (an initial batch dimension because max_batch_size "
@@ -266,7 +254,7 @@ CompareDimsSupported(
         std::string("model '") + model_name + "', tensor '" + tensor_name +
             "': the model expects " + std::to_string(model_shape.size()) +
             " dimensions (shape " +
-            ShapeToString(ConvertToSignedShape(model_shape)) +
+            ShapeToString(model_shape) +
             ") but the model configuration specifies " +
             std::to_string(dims.size()) + " dimensions (shape " +
             ShapeToString(dims) + ")");
@@ -292,6 +280,20 @@ std::vector<int64_t>
 ConvertToSignedShape(const std::vector<size_t> shape)
 {
   return std::vector<int64_t>{shape.begin(), shape.end()};
+}
+
+std::vector<int64_t>
+ConvertPartialShapeToSigenedShape(const ov::PartialShape& partial_shape)
+{
+    std::vector<int64_t> dims;
+    for (size_t i = 0; i < partial_shape.size(); i++) {
+        int64_t real_dim = partial_shape[i].get_interval().get_max_val();
+        if (real_dim != partial_shape[i].get_interval().get_min_val()) {
+            real_dim = -1;
+        }
+        dims.push_back(real_dim);
+    }
+    return dims;
 }
 
 }}}  // namespace triton::backend::openvino

@@ -85,6 +85,7 @@ TRITONSERVER_DataType ConvertFromOpenVINOElement(
 ov::element::Type ConvertToOpenVINOElement(TRITONSERVER_DataType data_type);
 ov::element::Type ConvertToOpenVINOElement(const std::string& data_type_str);
 
+std::vector<int64_t> ConvertPartialShapeToSigenedShape(const ov::PartialShape& partial_shape);
 ov::element::Type ModelConfigDataTypeToOpenVINOElement(
     const std::string& data_type_str);
 std::string OpenVINOElementToModelConfigDataType(
@@ -92,7 +93,7 @@ std::string OpenVINOElementToModelConfigDataType(
 
 TRITONSERVER_Error* CompareDimsSupported(
     const std::string& model_name, const std::string& tensor_name,
-    const std::vector<size_t>& model_shape, const std::vector<int64_t>& dims,
+    const std::vector<int64_t>& model_shape, const std::vector<int64_t>& dims,
     const int max_batch_size, const bool compare_exact);
 
 TRITONSERVER_Error* ReadParameter(

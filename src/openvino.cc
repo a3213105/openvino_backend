@@ -551,13 +551,12 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
       RETURN_IF_ERROR(ParseShape(io, "dims", &dims));
     }
 
-    //ov::Shape input_shape;
-    ov::PartialShape input_shape;
+    ov::PartialShape input_partial_shape;
     RETURN_IF_OPENVINO_ASSIGN_ERROR(
-        input_shape,
+        input_partial_shape,
         model_inputs[model_inputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from input " + io_name).c_str());
-
+    std::vector<int64_t> input_shape = ConvertPartialShapeToSigenedShape(input_partial_shape);
     if (reshape_io_layers_) {
       int index = (MaxBatchSize() != 0) ? 1 : 0;
       for (const auto dim : dims) {
@@ -567,10 +566,10 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
           ppp.input(io_name).tensor().set_shape(input_shape),
           std::string("setting shape for " + io_name).c_str());
     } else {
-//      RETURN_IF_ERROR(CompareDimsSupported(
-//          Name(), io_name,
-//          std::vector<size_t>(input_shape.begin(), input_shape.end()), dims,
-//          MaxBatchSize(), false /* compare_exact */));
+      RETURN_IF_ERROR(CompareDimsSupported(
+          Name(), io_name,
+          input_shape, dims,
+          MaxBatchSize(), false /* compare_exact */));
     }
 
     if (MaxBatchSize()) {
@@ -644,16 +643,17 @@ ModelState::ValidateOutputs()
     } else {
       RETURN_IF_ERROR(ParseShape(io, "dims", &dims));
     }
-    //ov::Shape output_shape;
-    ov::PartialShape output_shape;
+
+    ov::PartialShape output_partial_shape;
     RETURN_IF_OPENVINO_ASSIGN_ERROR(
-        output_shape,
+        output_partial_shape,
         model_outputs[model_outputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from output " + io_name).c_str());
-    //RETURN_IF_ERROR(CompareDimsSupported(
-    //    Name(), io_name,
-    //    std::vector<size_t>(output_shape.begin(), output_shape.end()), dims,
-    //    MaxBatchSize(), true /* compare_exact */));
+    std::vector<int64_t> output_shape = ConvertPartialShapeToSigenedShape(output_partial_shape);
+    RETURN_IF_ERROR(CompareDimsSupported(
+        Name(), io_name,
+        output_shape, dims,
+        MaxBatchSize(), true /* compare_exact */));
   }
 
   // Model preprocessing
@@ -811,34 +811,17 @@ ModelState::AutoCompleteInputOrOutput(
       RETURN_IF_ERROR(io_json.AddString(
           "data_type",
           OpenVINOElementToModelConfigDataType(ov_io.get_element_type())));
-      /*
-      if(std::strcmp(io_json_obj_name, "input")==0) {
-          ov::Layout ov_layout = ov::layout::get_layout(ov_io);
-	  std::string layout_str = ov_layout.to_string();
-          LOG_MESSAGE(TRITONSERVER_LOG_WARN,  
-              (io_json_obj_name + 
-	       std::string(" from node: ") + io_name + " got format:"
-	       + ov_layout.to_string()).c_str());
-          RETURN_IF_ERROR(io_json.AddString(
-              "format", ov_layout.to_string()));
-      }
-      */
       // Find shape
       triton::common::TritonJson::Value dims(
           ModelConfig(), triton::common::TritonJson::ValueType::ARRAY);
-      ov::PartialShape io_shape;
+      ov::PartialShape io_partial_shape;
       RETURN_IF_OPENVINO_ASSIGN_ERROR(
-          io_shape, ov_io.get_partial_shape(),
+          io_partial_shape, ov_io.get_partial_shape(),
           ("retrieving original shapes from dynamic " + std::string(io_json_obj_name) +
            " " + io_name).c_str());
+      std::vector<int64_t> io_shape = ConvertPartialShapeToSigenedShape(io_partial_shape);
       for (size_t i = (MaxBatchSize() > 0) ? 1 : 0; i < io_shape.size(); i++) {
-          int real = io_shape[i].get_interval().get_max_val();
-          if (real != io_shape[i].get_interval().get_min_val())
-              real = -1;
-	  LOG_MESSAGE(TRITONSERVER_LOG_WARN,
-            (std::string("from node: ") + io_name + " got dims["
-             + std::to_string(i) + "]=" + std::to_string(real)).c_str());
-          RETURN_IF_ERROR(dims.AppendInt(real));
+          RETURN_IF_ERROR(dims.AppendInt(io_shape[i]));
       }
       RETURN_IF_ERROR(io_json.Add("dims", std::move(dims)));
       // Add individual input/output to new input/output
@@ -858,7 +841,6 @@ ModelState::AutoCompleteInputOrOutput(
          "': " + io_json_obj_name + " already specified")
             .c_str());
   }
-
   return nullptr;  // success
 }
 

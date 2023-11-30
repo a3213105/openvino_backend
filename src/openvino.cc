@@ -89,7 +89,7 @@ class ModelState : public BackendModel {
       std::pair<std::string, ov::Any>* ov_property);
 
   TRITONSERVER_Error* ConfigureOpenvinoCore();
-
+  TRITONSERVER_Error* DisableMMap();
   // Reads the Intermediate Representation(IR) model using `artifact_name`
   // as the name for the model file/directory. Return in `model_path` the
   // full path to the model file, return `network` the CNNNetwork.
@@ -197,6 +197,15 @@ ModelState::PrintModelConfig()
 }
 
 TRITONSERVER_Error*
+ModelState::DisableMMap()
+{
+  RETURN_IF_OPENVINO_ERROR(
+      ov_core_.set_property(ov::enable_mmap(false)),
+      " disenable mmap!");
+  return nullptr;
+}
+
+TRITONSERVER_Error*
 ModelState::ReadModel(const std::string& artifact_name, std::string* model_path)
 {
   RETURN_ERROR_IF_FALSE(
@@ -225,7 +234,7 @@ ModelState::ReadModel(const std::string& artifact_name, std::string* model_path)
   }
 
   // force to set enable_mmap to false to avoid potential network issue with cloud deployment.
-  ov_core_.set_property(ov::enable_mmap(false));
+  DisableMMap();
 
   RETURN_IF_OPENVINO_ASSIGN_ERROR(
       ov_model_, ov_core_.read_model(*model_path), "reading model");

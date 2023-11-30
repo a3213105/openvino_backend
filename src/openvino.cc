@@ -224,6 +224,9 @@ ModelState::ReadModel(const std::string& artifact_name, std::string* model_path)
             Name() + "'");
   }
 
+  // force to set enable_mmap to false to avoid potential network issue with cloud deployment.
+  ov_core_.set_property(ov::enable_mmap(false));
+
   RETURN_IF_OPENVINO_ASSIGN_ERROR(
       ov_model_, ov_core_.read_model(*model_path), "reading model");
 

@@ -373,7 +373,10 @@ ModelState::ParseParameterHelper(
   } else if (mkey.compare("HINT_BF16") == 0) {
     if (value->compare("yes") == 0) {
       *ov_property = ov::hint::inference_precision(ov::element::bf16);
-    } else {
+    } else if(value->compare("no") == 0){
+      *ov_property = ov::hint::inference_precision(ov::element::f32);
+    }
+    else {
       return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_INVALID_ARG,
           (std::string("expected the parameter '") + mkey +

@@ -380,7 +380,7 @@ ModelState::ParseParameterHelper(
       return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_INVALID_ARG,
           (std::string("expected the parameter '") + mkey +
-           "' to be YES, got " + *value)
+           "' to be YES or NO, got " + *value)
               .c_str());
     }
   } else if (mkey.compare("NUM_STREAMS") == 0) {

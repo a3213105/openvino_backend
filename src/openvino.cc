@@ -89,7 +89,7 @@ class ModelState : public BackendModel {
       std::pair<std::string, ov::Any>* ov_property);
 
   TRITONSERVER_Error* ConfigureOpenvinoCore();
-  TRITONSERVER_Error* SetOpenVINOMMapFlag();
+
   // Reads the Intermediate Representation(IR) model using `artifact_name`
   // as the name for the model file/directory. Return in `model_path` the
   // full path to the model file, return `network` the CNNNetwork.
@@ -140,7 +140,6 @@ class ModelState : public BackendModel {
   bool skip_dynamic_batchsize_;
   bool enable_padding_;
   bool reshape_io_layers_;
-  bool enable_mmap_;
 };
 
 TRITONSERVER_Error*
@@ -180,7 +179,7 @@ ModelState::Create(TRITONBACKEND_Model* triton_model, ModelState** state)
 ModelState::ModelState(TRITONBACKEND_Model* triton_model)
     : BackendModel(triton_model), model_read_(false),
       skip_dynamic_batchsize_(false), enable_padding_(false),
-      reshape_io_layers_(false), enable_mmap_(false)
+      reshape_io_layers_(false)
 {
 }
 
@@ -195,15 +194,6 @@ ModelState::PrintModelConfig()
       (std::string("model configuration:\n") + buffer.Contents()).c_str());
 
   return nullptr;  // success
-}
-
-TRITONSERVER_Error*
-ModelState::SetOpenVINOMMapFlag()
-{
-  RETURN_IF_OPENVINO_ERROR(
-      ov_core_.set_property(ov::enable_mmap(enable_mmap_)),
-      " set mmap flag!");
-  return nullptr;
 }
 
 TRITONSERVER_Error*
@@ -234,10 +224,6 @@ ModelState::ReadModel(const std::string& artifact_name, std::string* model_path)
             Name() + "'");
   }
 
-  // set ENABLE_MMAP=yes in config file to enable mmap used on OpenVINO bin file.
-  // default enable_mmap is false
-  SetOpenVINOMMapFlag();
-
   RETURN_IF_OPENVINO_ASSIGN_ERROR(
       ov_model_, ov_core_.read_model(*model_path), "reading model");
 
@@ -258,8 +244,6 @@ ModelState::ParseParameters()
         ParseBoolParameter("ENABLE_BATCH_PADDING", params, &enable_padding_));
     RETURN_IF_ERROR(
         ParseBoolParameter("RESHAPE_IO_LAYERS", params, &reshape_io_layers_));
-    RETURN_IF_ERROR(
-        ParseBoolParameter("ENABLE_MMAP", params, &enable_mmap_));
   }
 
   return nullptr;
@@ -373,14 +357,11 @@ ModelState::ParseParameterHelper(
   } else if (mkey.compare("HINT_BF16") == 0) {
     if (value->compare("yes") == 0) {
       *ov_property = ov::hint::inference_precision(ov::element::bf16);
-    } else if(value->compare("no") == 0){
-      *ov_property = ov::hint::inference_precision(ov::element::f32);
-    }
-    else {
+    } else {
       return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_INVALID_ARG,
           (std::string("expected the parameter '") + mkey +
-           "' to be YES or NO, got " + *value)
+           "' to be YES, got " + *value)
               .c_str());
     }
   } else if (mkey.compare("NUM_STREAMS") == 0) {
@@ -420,6 +401,9 @@ ModelState::ParseParameterHelper(
          "' is not yet supported by openvino backend")
             .c_str());
   }
+
+  // set not to use HT by default to get better and more stable performance
+  *ov_property = ov::hint::enable_hyper_threading(false);
 
   return nullptr;
 }

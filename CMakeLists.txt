@@ -46,9 +46,9 @@ set(TRITON_BUILD_CONTAINER "" CACHE STRING "Triton container to use a base for b
 set(TRITON_BUILD_CONTAINER_VERSION "" CACHE STRING "Triton container version to target")
 set(TRITON_BUILD_OPENVINO_VERSION "" CACHE STRING "OpenVINO version to build")
 
-set(TRITON_BACKEND_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/backend repo")
-set(TRITON_CORE_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/core repo")
-set(TRITON_COMMON_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/common repo")
+set(TRITON_BACKEND_REPO_TAG "r23.02" CACHE STRING "Tag for triton-inference-server/backend repo")
+set(TRITON_CORE_REPO_TAG "r23.02" CACHE STRING "Tag for triton-inference-server/core repo")
+set(TRITON_COMMON_REPO_TAG "r23.02" CACHE STRING "Tag for triton-inference-server/common repo")
 
 set(TRITON_ENABLE_GPU OFF CACHE BOOL "GPU disabled" FORCE)
 
@@ -200,13 +200,13 @@ else()
     OUTPUT
       openvino/lib/${OPENVINO_LIBRARY}
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_openvino_dockerfile.py --build-type="${CMAKE_BUILD_TYPE}" --triton-container="${TRITON_BUILD_CONTAINER}" --openvino-version="${TRITON_BUILD_OPENVINO_VERSION}" --output=Dockerfile.openvino
-    COMMAND docker build --cache-from=${TRITON_OPENVINO_DOCKER_IMAGE} --cache-from=${TRITON_OPENVINO_DOCKER_IMAGE}_cache0 --cache-from=${TRITON_OPENVINO_DOCKER_IMAGE}_cache1 -t ${TRITON_OPENVINO_DOCKER_IMAGE} -f ./Dockerfile.openvino ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMAND docker rm openvino_backend_ov || echo "error ignored..." || true
-    COMMAND docker create --name openvino_backend_ov ${TRITON_OPENVINO_DOCKER_IMAGE}
-    COMMAND rm -fr openvino
-    COMMAND docker cp openvino_backend_ov:/opt/openvino openvino
-    COMMAND docker rm openvino_backend_ov
-    COMMAND echo '<ie><plugins><plugin name=\"CPU\" location=\"libopenvino_intel_cpu_plugin.so\"></plugin></plugins></ie>' >> openvino/lib/plugins.xml
+    # COMMAND docker build --cache-from=${TRITON_OPENVINO_DO/CKER_IMAGE} --cache-from=${TRITON_OPENVINO_DOCKER_IMAGE}_cache0 --cache-from=${TRITON_OPENVINO_DOCKER_IMAGE}_cache1 -t ${TRITON_OPENVINO_DOCKER_IMAGE} -f ./Dockerfile.openvino ${CMAKE_CURRENT_SOURCE_DIR}
+    # COMMAND docker rm openvino_backend_ov || echo "error ignored..." || true
+    # COMMAND docker create --name openvino_backend_ov ${TRITON_OPENVINO_DOCKER_IMAGE}
+    # COMMAND rm -fr openvino
+    # COMMAND docker cp openvino_backend_ov:/opt/openvino openvino
+    # COMMAND docker rm openvino_backend_ov
+    # COMMAND echo '<ie><plugins><plugin name=\"CPU\" location=\"libopenvino_intel_cpu_plugin.so\"></plugin></plugins></ie>' >> openvino/lib/plugins.xml
     COMMENT "Building OpenVino"
   )
 endif() # WIN32

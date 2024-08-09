@@ -28,9 +28,6 @@ cmake_minimum_required(VERSION 3.17)
 
 project(tritonopenvinobackend LANGUAGES C CXX)
 
-# Use C++17 standard as Triton's minimum required.
-set(TRITON_MIN_CXX_STANDARD 17 CACHE STRING "The minimum C++ standard which features are requested to build this target.")
-
 #
 # Set TRITON_BUILD_OPENVINO_VERSION to the version of OpenVINO that
 # you want to be built for the backend.
@@ -49,7 +46,6 @@ set(TRITON_BUILD_CONTAINER "" CACHE STRING "Triton container to use a base for b
 set(TRITON_BUILD_CONTAINER_VERSION "" CACHE STRING "Triton container version to target")
 set(TRITON_BUILD_OPENVINO_VERSION "" CACHE STRING "OpenVINO version to build")
 
-set(TRITON_REPO_ORGANIZATION "https://github.com/triton-inference-server" CACHE STRING "Git repository to pull from")
 set(TRITON_BACKEND_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/backend repo")
 set(TRITON_CORE_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/core repo")
 set(TRITON_COMMON_REPO_TAG "main" CACHE STRING "Tag for triton-inference-server/common repo")
@@ -97,19 +93,19 @@ include(FetchContent)
 
 FetchContent_Declare(
   repo-common
-  GIT_REPOSITORY ${TRITON_REPO_ORGANIZATION}/common.git
+  GIT_REPOSITORY https://github.com/triton-inference-server/common.git
   GIT_TAG ${TRITON_COMMON_REPO_TAG}
   GIT_SHALLOW ON
 )
 FetchContent_Declare(
   repo-core
-  GIT_REPOSITORY ${TRITON_REPO_ORGANIZATION}/core.git
+  GIT_REPOSITORY https://github.com/triton-inference-server/core.git
   GIT_TAG ${TRITON_CORE_REPO_TAG}
   GIT_SHALLOW ON
 )
 FetchContent_Declare(
   repo-backend
-  GIT_REPOSITORY ${TRITON_REPO_ORGANIZATION}/backend.git
+  GIT_REPOSITORY https://github.com/triton-inference-server/backend.git
   GIT_TAG ${TRITON_BACKEND_REPO_TAG}
   GIT_SHALLOW ON
 )
@@ -138,7 +134,7 @@ target_include_directories(
     ${TRITON_OPENVINO_INCLUDE_PATHS}
 )
 
-target_compile_features(triton-openvino-backend PRIVATE cxx_std_${TRITON_MIN_CXX_STANDARD})
+target_compile_features(triton-openvino-backend PRIVATE cxx_std_11)
 target_compile_options(
   triton-openvino-backend PRIVATE
   $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:

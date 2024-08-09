@@ -62,6 +62,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake \
         libglib2.0-dev \
+        libtbb-dev \
         patchelf \
         git \
         make \
@@ -71,10 +72,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Build instructions:
 # https://github.com/openvinotoolkit/openvino/wiki/BuildingForLinux
-
-# The linux part is building from source, while the windows part is using
-# pre-build archive.
-# TODO: Unify build steps between linux and windows.
 
 ARG OPENVINO_VERSION
 ARG OPENVINO_BUILD_TYPE
@@ -103,10 +100,11 @@ RUN /bin/bash -c 'cmake \
 WORKDIR /opt/openvino
 RUN cp -r /workspace/openvino/licensing LICENSE.openvino
 RUN mkdir -p include && \
-    cp -r /workspace/install/runtime/include/* include/.
+    cp -r /workspace/install/runtime/include/ngraph include/. && \
+    cp -r /workspace/install/runtime/include/openvino include/.
 RUN mkdir -p lib && \
-    cp -P /workspace/install/runtime/lib/intel64/*.so* lib/. && \
-    cp -P /workspace/install/runtime/3rdparty/tbb/lib/libtbb.so* lib/. \
+    cp -P /usr/lib/x86_64-linux-gnu/libtbb.so* lib/. && \
+    cp -P /workspace/install/runtime/lib/intel64/libopenvino*.so* lib/. \
 """
 
     df += """
@@ -125,28 +123,41 @@ def dockerfile_for_windows(output_file):
     df += """
 SHELL ["cmd", "/S", "/C"]
 
-# Install instructions:
-# https://docs.openvino.ai/2024/get-started/install-openvino/install-openvino-archive-windows.html
+# Build instructions:
+# https://github.com/openvinotoolkit/openvino/wiki/BuildingForWindows
 
-# The windows part is using pre-build archive, while the linux part is building
-# from source.
-# TODO: Unify build steps between windows and linux.
-
-ARG OPENVINO_VERSION=2024.0.0
+ARG OPENVINO_VERSION
 ARG OPENVINO_BUILD_TYPE
-
 WORKDIR /workspace
-RUN IF "%OPENVINO_VERSION%"=="2023.3.0" curl -L https://storage.openvinotoolkit.org/repositories/openvino/packages/2023.3/windows/w_openvino_toolkit_windows_2023.3.0.13775.ceeafaf64f3_x86_64.zip --output ov.zip
-RUN IF "%OPENVINO_VERSION%"=="2024.0.0" curl -L https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.0/windows/w_openvino_toolkit_windows_2024.0.0.14509.34caeefd078_x86_64.zip --output ov.zip
-RUN IF "%OPENVINO_VERSION%"=="2024.1.0" curl -L https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.1/windows/w_openvino_toolkit_windows_2024.1.0.15008.f4afc983258_x86_64.zip --output ov.zip
-RUN IF not exist ov.zip ( echo "OpenVINO version %OPENVINO_VERSION% not supported" && exit 1 )
-RUN tar -xf ov.zip
-RUN powershell.exe "Get-ChildItem w_openvino_toolkit_windows_* | foreach { ren $_.fullname install }"
+
+# When git cloning it is important that we include '-b' and branchname
+# so that this command is re-run when the branch changes, otherwise it
+# will be cached by docker and continue using an old clone/branch. We
+# are relying on the use of a release branch that does not change once
+# it is released (if a patch is needed for that release we expect
+# there to be a new version).
+RUN git clone -b %OPENVINO_VERSION% https://github.com/openvinotoolkit/openvino.git
+
+WORKDIR /workspace/openvino
+RUN git submodule update --init --recursive
+
+WORKDIR /workspace/openvino/build
+ARG VS_DEVCMD_BAT="call \BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+ARG CMAKE_BAT="cmake \
+          -DCMAKE_BUILD_TYPE=%OPENVINO_BUILD_TYPE% \
+          -DCMAKE_INSTALL_PREFIX=C:/workspace/install \
+          -DENABLE_TESTS=OFF \
+          .."
+ARG CMAKE_BUILD_BAT="cmake --build . --config %OPENVINO_BUILD_TYPE% --target install --verbose -j8"
+RUN powershell Set-Content 'build.bat' -value '%VS_DEVCMD_BAT%','%CMAKE_BAT%','%CMAKE_BUILD_BAT%'
+RUN build.bat
 
 WORKDIR /opt/openvino
-RUN xcopy /I /E \\workspace\\install\\docs\\licensing LICENSE.openvino
+RUN xcopy /I /E \\workspace\\openvino\\licensing LICENSE.openvino
 RUN mkdir include
-RUN xcopy /I /E \\workspace\\install\\runtime\\include\\* include
+RUN xcopy /I /E \\workspace\\install\\runtime\\include\\ie include
+RUN xcopy /I /E \\workspace\\install\\runtime\\include\\ngraph include\\ngraph
+RUN xcopy /I /E \\workspace\\install\\runtime\\include\\openvino include\\openvino
 RUN xcopy /I /E \\workspace\\install\\runtime\\bin\\intel64\\%OPENVINO_BUILD_TYPE% bin
 RUN xcopy /I /E \\workspace\\install\\runtime\\lib\\intel64\\%OPENVINO_BUILD_TYPE% lib
 RUN copy \\workspace\\install\\runtime\\3rdparty\\tbb\\bin\\tbb12.dll bin\\tbb12.dll

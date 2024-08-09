@@ -281,8 +281,7 @@ ModelState::ParseParameters(const std::string& device)
           ParseParameter("COMPILATION_NUM_THREADS", params, &device_config));
       RETURN_IF_ERROR(ParseParameter("HINT_BF16", params, &device_config));
       RETURN_IF_ERROR(ParseParameter("NUM_STREAMS", params, &device_config));
-      RETURN_IF_ERROR(
-          ParseParameter("PERFORMANCE_HINT", params, &device_config));
+      RETURN_IF_ERROR(ParseParameter("PERFORMANCE_HINT", params, &device_config));
     }
   }
 
@@ -386,9 +385,10 @@ ModelState::ParseParameterHelper(
       *ov_property = ov::streams::num(ov::streams::AUTO);
     } else if (value->compare("numa") == 0) {
       *ov_property = ov::streams::num(ov::streams::NUMA);
-    } else if (IsNumber(*value)) {
+    } else if (IsNumber(*value)){
       *ov_property = ov::streams::num(std::stoi(*value));
-    } else {
+    }
+    else{
       return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_INVALID_ARG,
           (std::string("expected the parameter '") + mkey +
@@ -397,22 +397,20 @@ ModelState::ParseParameterHelper(
     }
   } else if (mkey.compare("PERFORMANCE_HINT") == 0) {
     if (value->compare("latency") == 0) {
-      *ov_property =
-          ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY);
+      *ov_property = ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY);
     } else if (value->compare("throughput") == 0) {
-      *ov_property =
-          ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT);
+      *ov_property = ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT);
     } else if (value->compare("cumulative_throughput") == 0) {
-      *ov_property = ov::hint::performance_mode(
-          ov::hint::PerformanceMode::CUMULATIVE_THROUGHPUT);
+      *ov_property = ov::hint::performance_mode(ov::hint::PerformanceMode::CUMULATIVE_THROUGHPUT);
     } else {
-      return TRITONSERVER_ErrorNew(
+       return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_INVALID_ARG,
           (std::string("expected the parameter '") + mkey +
            "' to be LATENCY/THROUGHPUT/CUMULATIVE_THROUGHPUT, got " + *value)
               .c_str());
     }
-  } else {
+  }
+  else {
     return TRITONSERVER_ErrorNew(
         TRITONSERVER_ERROR_INVALID_ARG,
         (std::string("the parameter '") + mkey +
@@ -569,33 +567,25 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
       RETURN_IF_ERROR(ParseShape(io, "dims", &dims));
     }
 
-    ov::Shape input_shape;
-    ov::PartialShape partial_input_shape;
+    ov::PartialShape input_partial_shape;
     RETURN_IF_OPENVINO_ASSIGN_ERROR(
-        partial_input_shape,
+        input_partial_shape,
         model_inputs[model_inputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from input " + io_name).c_str());
+    std::vector<int64_t> input_shape = ConvertPartialShapeToSigenedShape(input_partial_shape);
     if (reshape_io_layers_) {
       int index = (MaxBatchSize() != 0) ? 1 : 0;
       for (const auto dim : dims) {
-        if (dim > 0) {
-          partial_input_shape[index++] = ov::Dimension(dim);
-        } else if (dim == -1) {
-          partial_input_shape[index++] = ov::Dimension::dynamic();
-        } else {
-          return TRITONSERVER_ErrorNew(
-              TRITONSERVER_ERROR_INTERNAL,
-              "openvino backend does not support dimensions values"
-              " other than `-1` or positive integers");
-        }
+        input_shape[index++] = dim;
       }
       RETURN_IF_OPENVINO_ERROR(
-          ppp.input(io_name).tensor().set_shape(partial_input_shape),
+          ppp.input(io_name).tensor().set_shape(input_shape),
           std::string("setting shape for " + io_name).c_str());
     } else {
       RETURN_IF_ERROR(CompareDimsSupported(
-          Name(), io_name, partial_input_shape, dims, MaxBatchSize(),
-          false /* compare_exact */));
+          Name(), io_name,
+          input_shape, dims,
+          MaxBatchSize(), false /* compare_exact */));
     }
 
     if (MaxBatchSize()) {
@@ -669,14 +659,17 @@ ModelState::ValidateOutputs()
     } else {
       RETURN_IF_ERROR(ParseShape(io, "dims", &dims));
     }
-    ov::PartialShape output_shape;
+
+    ov::PartialShape output_partial_shape;
     RETURN_IF_OPENVINO_ASSIGN_ERROR(
-        output_shape,
+        output_partial_shape,
         model_outputs[model_outputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from output " + io_name).c_str());
+    std::vector<int64_t> output_shape = ConvertPartialShapeToSigenedShape(output_partial_shape);
     RETURN_IF_ERROR(CompareDimsSupported(
-        Name(), io_name, output_shape, dims, MaxBatchSize(),
-        true /* compare_exact */));
+        Name(), io_name,
+        output_shape, dims,
+        MaxBatchSize(), true /* compare_exact */));
   }
 
   // Model preprocessing
@@ -835,13 +828,6 @@ ModelState::AutoCompleteInputOrOutput(
           "data_type",
           OpenVINOElementToModelConfigDataType(ov_io.get_element_type())));
       // Find shape
-      ov::PartialShape io_shape;
-      RETURN_IF_OPENVINO_ASSIGN_ERROR(
-          io_shape, ov_io.get_partial_shape(),
-          ("retrieving original shapes from" + std::string(io_json_obj_name) +
-           " " + io_name)
-              .c_str());
-      // Populate dims
       triton::common::TritonJson::Value dims(
           ModelConfig(), triton::common::TritonJson::ValueType::ARRAY);
       ov::PartialShape io_partial_shape;
@@ -849,9 +835,9 @@ ModelState::AutoCompleteInputOrOutput(
           io_partial_shape, ov_io.get_partial_shape(),
           ("retrieving original shapes from dynamic " + std::string(io_json_obj_name) +
            " " + io_name).c_str());
+      std::vector<int64_t> io_shape = ConvertPartialShapeToSigenedShape(io_partial_shape);
       for (size_t i = (MaxBatchSize() > 0) ? 1 : 0; i < io_shape.size(); i++) {
-        RETURN_IF_ERROR(dims.AppendInt(
-            io_shape.is_static() ? io_shape[i].get_length() : -1));
+          RETURN_IF_ERROR(dims.AppendInt(io_shape[i]));
       }
       RETURN_IF_ERROR(io_json.Add("dims", std::move(dims)));
       // Add individual input/output to new input/output
@@ -959,7 +945,7 @@ ModelInstanceState::ModelInstanceState(
     throw triton::backend::BackendModelInstanceException(TRITONSERVER_ErrorNew(
         TRITONSERVER_ERROR_INVALID_ARG,
         (std::string("unable to load model '") + model_state_->Name() +
-         "', Triton openVINO backend supports only CPU device")
+         "', openVINO backend supports only CPU device")
             .c_str()));
   }
 
@@ -1221,9 +1207,8 @@ ModelInstanceState::Infer(
     std::vector<TRITONBACKEND_Response*>* responses,
     const uint32_t response_count)
 {
-  RETURN_IF_OPENVINO_ERROR(
-      infer_request_.start_async(), "running async inference");
-  RETURN_IF_OPENVINO_ERROR(infer_request_.wait(), "running inference - wait");
+  RETURN_IF_OPENVINO_ERROR(infer_request_.start_async(), "running inference");
+  infer_request_.wait();
 
   return nullptr;
 }
@@ -1411,6 +1396,7 @@ TRITONBACKEND_Initialize(TRITONBACKEND_Backend* backend)
   const char* cname;
   RETURN_IF_ERROR(TRITONBACKEND_BackendName(backend, &cname));
   std::string name(cname);
+
   LOG_MESSAGE(
       TRITONSERVER_LOG_INFO,
       (std::string("TRITONBACKEND_Initialize: ") + name).c_str());

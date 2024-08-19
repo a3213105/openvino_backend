@@ -159,6 +159,8 @@ ModelConfigDataTypeToOpenVINOElement(const std::string& data_type_str)
       return ov::element::f16;
     } else if (dtype == "FP32") {
       return ov::element::f32;
+    } else if (dtype == "STRING") {
+      return ov::element::string;
     }
   }
 
@@ -190,6 +192,8 @@ OpenVINOElementToModelConfigDataType(const ov::element::Type& data_type)
     return "TYPE_FP16";
   } else if (data_type == ov::element::f32) {
     return "TYPE_FP32";
+  } else if (data_type == ov::element::string) {
+    return "TYPE_STRING";
   }
 
   return "TYPE_INVALID";

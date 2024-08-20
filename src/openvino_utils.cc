@@ -67,6 +67,8 @@ ConvertFromOpenVINOElement(ov::element::Type openvino_element)
       return TRITONSERVER_TYPE_UINT32;
     case ov::element::u64:
       return TRITONSERVER_TYPE_UINT64;
+    case ov::element::string:
+      return TRITONSERVER_TYPE_BYTES;
     // The following types are not supported:
     // Unspecified value. Used by default
     case ov::element::undefined:
@@ -115,6 +117,8 @@ ConvertToOpenVINOElement(TRITONSERVER_DataType data_type)
       return ov::element::f32;
     case TRITONSERVER_TYPE_BOOL:
       return ov::element::boolean;
+    case TRITONSERVER_TYPE_BYTES:
+      return ov::element::string;
     default:
       break;
   }

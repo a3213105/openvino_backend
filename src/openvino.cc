@@ -201,8 +201,7 @@ TRITONSERVER_Error*
 ModelState::SetOpenVINOMMapFlag()
 {
   RETURN_IF_OPENVINO_ERROR(
-      ov_core_.set_property(ov::enable_mmap(enable_mmap_)),
-      " set mmap flag!");
+      ov_core_.set_property(ov::enable_mmap(enable_mmap_)), " set mmap flag!");
   return nullptr;
 }
 
@@ -234,8 +233,8 @@ ModelState::ReadModel(const std::string& artifact_name, std::string* model_path)
             Name() + "'");
   }
 
-  // set ENABLE_MMAP=yes in config file to enable mmap used on OpenVINO bin file.
-  // default enable_mmap is false
+  // set ENABLE_MMAP=yes in config file to enable mmap used on OpenVINO bin
+  // file. default enable_mmap is false
   SetOpenVINOMMapFlag();
 
   RETURN_IF_OPENVINO_ASSIGN_ERROR(
@@ -258,8 +257,7 @@ ModelState::ParseParameters()
         ParseBoolParameter("ENABLE_BATCH_PADDING", params, &enable_padding_));
     RETURN_IF_ERROR(
         ParseBoolParameter("RESHAPE_IO_LAYERS", params, &reshape_io_layers_));
-    RETURN_IF_ERROR(
-        ParseBoolParameter("ENABLE_MMAP", params, &enable_mmap_));
+    RETURN_IF_ERROR(ParseBoolParameter("ENABLE_MMAP", params, &enable_mmap_));
   }
 
   return nullptr;
@@ -281,7 +279,8 @@ ModelState::ParseParameters(const std::string& device)
           ParseParameter("COMPILATION_NUM_THREADS", params, &device_config));
       RETURN_IF_ERROR(ParseParameter("HINT_BF16", params, &device_config));
       RETURN_IF_ERROR(ParseParameter("NUM_STREAMS", params, &device_config));
-      RETURN_IF_ERROR(ParseParameter("PERFORMANCE_HINT", params, &device_config));
+      RETURN_IF_ERROR(
+          ParseParameter("PERFORMANCE_HINT", params, &device_config));
     }
   }
 
@@ -385,10 +384,9 @@ ModelState::ParseParameterHelper(
       *ov_property = ov::streams::num(ov::streams::AUTO);
     } else if (value->compare("numa") == 0) {
       *ov_property = ov::streams::num(ov::streams::NUMA);
-    } else if (IsNumber(*value)){
+    } else if (IsNumber(*value)) {
       *ov_property = ov::streams::num(std::stoi(*value));
-    }
-    else{
+    } else {
       return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_INVALID_ARG,
           (std::string("expected the parameter '") + mkey +
@@ -397,20 +395,22 @@ ModelState::ParseParameterHelper(
     }
   } else if (mkey.compare("PERFORMANCE_HINT") == 0) {
     if (value->compare("latency") == 0) {
-      *ov_property = ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY);
+      *ov_property =
+          ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY);
     } else if (value->compare("throughput") == 0) {
-      *ov_property = ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT);
+      *ov_property =
+          ov::hint::performance_mode(ov::hint::PerformanceMode::THROUGHPUT);
     } else if (value->compare("cumulative_throughput") == 0) {
-      *ov_property = ov::hint::performance_mode(ov::hint::PerformanceMode::CUMULATIVE_THROUGHPUT);
+      *ov_property = ov::hint::performance_mode(
+          ov::hint::PerformanceMode::CUMULATIVE_THROUGHPUT);
     } else {
-       return TRITONSERVER_ErrorNew(
+      return TRITONSERVER_ErrorNew(
           TRITONSERVER_ERROR_INVALID_ARG,
           (std::string("expected the parameter '") + mkey +
            "' to be LATENCY/THROUGHPUT/CUMULATIVE_THROUGHPUT, got " + *value)
               .c_str());
     }
-  }
-  else {
+  } else {
     return TRITONSERVER_ErrorNew(
         TRITONSERVER_ERROR_INVALID_ARG,
         (std::string("the parameter '") + mkey +
@@ -572,7 +572,8 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
         input_partial_shape,
         model_inputs[model_inputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from input " + io_name).c_str());
-    std::vector<int64_t> input_shape = ConvertPartialShapeToSigenedShape(input_partial_shape);
+    std::vector<int64_t> input_shape =
+        ConvertPartialShapeToSigenedShape(input_partial_shape);
     if (reshape_io_layers_) {
       int index = (MaxBatchSize() != 0) ? 1 : 0;
       for (const auto dim : dims) {
@@ -583,9 +584,8 @@ ModelState::ValidateInputs(const size_t expected_input_cnt)
           std::string("setting shape for " + io_name).c_str());
     } else {
       RETURN_IF_ERROR(CompareDimsSupported(
-          Name(), io_name,
-          input_shape, dims,
-          MaxBatchSize(), false /* compare_exact */));
+          Name(), io_name, input_shape, dims, MaxBatchSize(),
+          false /* compare_exact */));
     }
 
     if (MaxBatchSize()) {
@@ -665,11 +665,11 @@ ModelState::ValidateOutputs()
         output_partial_shape,
         model_outputs[model_outputs_name_to_index[io_name]].get_partial_shape(),
         ("retrieving original shapes from output " + io_name).c_str());
-    std::vector<int64_t> output_shape = ConvertPartialShapeToSigenedShape(output_partial_shape);
+    std::vector<int64_t> output_shape =
+        ConvertPartialShapeToSigenedShape(output_partial_shape);
     RETURN_IF_ERROR(CompareDimsSupported(
-        Name(), io_name,
-        output_shape, dims,
-        MaxBatchSize(), true /* compare_exact */));
+        Name(), io_name, output_shape, dims, MaxBatchSize(),
+        true /* compare_exact */));
   }
 
   // Model preprocessing
@@ -833,11 +833,13 @@ ModelState::AutoCompleteInputOrOutput(
       ov::PartialShape io_partial_shape;
       RETURN_IF_OPENVINO_ASSIGN_ERROR(
           io_partial_shape, ov_io.get_partial_shape(),
-          ("retrieving original shapes from dynamic " + std::string(io_json_obj_name) +
-           " " + io_name).c_str());
-      std::vector<int64_t> io_shape = ConvertPartialShapeToSigenedShape(io_partial_shape);
+          ("retrieving original shapes from dynamic " +
+           std::string(io_json_obj_name) + " " + io_name)
+              .c_str());
+      std::vector<int64_t> io_shape =
+          ConvertPartialShapeToSigenedShape(io_partial_shape);
       for (size_t i = (MaxBatchSize() > 0) ? 1 : 0; i < io_shape.size(); i++) {
-          RETURN_IF_ERROR(dims.AppendInt(io_shape[i]));
+        RETURN_IF_ERROR(dims.AppendInt(io_shape[i]));
       }
       RETURN_IF_ERROR(io_json.Add("dims", std::move(dims)));
       // Add individual input/output to new input/output
@@ -1254,13 +1256,16 @@ ModelInstanceState::SetInputTensors(
     }
 
     std::string batchn_shape_str = std::to_string(batchn_shape[0]);
-    for (size_t i=1;i<batchn_shape.size();i++) {
-        batchn_shape_str += ", ";
-        batchn_shape_str += std::to_string(batchn_shape[i]);
+    for (size_t i = 1; i < batchn_shape.size(); i++) {
+      batchn_shape_str += ", ";
+      batchn_shape_str += std::to_string(batchn_shape[i]);
     }
-    LOG_MESSAGE(TRITONSERVER_LOG_INFO,
-        (std::string("### ModelInstanceState::SetInputTensors ###  input_name:")
-        + std::string(input_name) + ", batchn_shape:" + batchn_shape_str).c_str());
+    LOG_MESSAGE(
+        TRITONSERVER_LOG_INFO,
+        (std::string(
+             "### ModelInstanceState::SetInputTensors ###  input_name:") +
+         std::string(input_name) + ", batchn_shape:" + batchn_shape_str)
+            .c_str());
 
     const int64_t batchn_byte_size = GetByteSize(input_datatype, batchn_shape);
 
@@ -1321,12 +1326,64 @@ ModelInstanceState::SetInputTensors(
   return nullptr;
 }
 
+bool
+SetStringOutputBuffer(
+    ov::Tensor& tensor, TRITONBACKEND_Response** response,
+    TRITONBACKEND_Output* response_output, const size_t tensor_element_count,
+    const size_t tensor_offset, cudaStream_t stream, std::string* serialized)
+{
+  bool cuda_copy = false;
+
+  // Serialize the output tensor strings. Each string is serialized as
+  // a 4-byte length followed by the string itself with no
+  // null-terminator.
+  serialized->clear();
+  size_t len = tensor.get_byte_size() / tensor_element_count;
+  const char* cstr =  (const char*)tensor.data();
+  for (size_t e = 0; e < tensor_element_count; ++e) {
+    serialized->append(reinterpret_cast<const char*>(&len), sizeof(uint32_t));
+    if (len > 0) {
+      serialized->append(cstr + e * len, len);
+    }
+  }
+
+  // Allocate a buffer large enough to hold the serialized tensor.
+  TRITONSERVER_MemoryType actual_memory_type = TRITONSERVER_MEMORY_CPU;
+  int64_t actual_memory_type_id = 0;
+
+  void* buffer;
+  auto err = TRITONBACKEND_OutputBuffer(
+      response_output, &buffer, serialized->size(), &actual_memory_type,
+      &actual_memory_type_id);
+  if (err != nullptr) {
+    RESPOND_AND_SET_NULL_IF_ERROR(response, err);
+    return cuda_copy;
+  }
+
+  // Copy the serialized tensor into the allocated buffer.
+  bool cuda_used = false;
+  err = CopyBuffer(
+      "String output", TRITONSERVER_MEMORY_CPU /* src_memory_type */,
+      0 /* src_memory_type_id */, actual_memory_type, actual_memory_type_id,
+      serialized->size(), reinterpret_cast<const void*>(serialized->c_str()),
+      buffer, stream, &cuda_used);
+  cuda_copy |= cuda_used;
+
+  if (err != nullptr) {
+    RESPOND_AND_SET_NULL_IF_ERROR(response, err);
+    return cuda_copy;
+  }
+
+  return cuda_copy;
+}
+
 TRITONSERVER_Error*
 ModelInstanceState::ReadOutputTensors(
     size_t total_batch_size, const std::vector<const char*>& output_names,
     TRITONBACKEND_Request** requests, const uint32_t request_count,
     std::vector<TRITONBACKEND_Response*>* responses)
 {
+  std::vector<std::unique_ptr<std::string>> string_buffer;
   BackendOutputResponder responder(
       requests, request_count, responses, model_state_->TritonMemoryManager(),
       model_state_->MaxBatchSize() > 0, model_state_->EnablePinnedInput(),
@@ -1339,23 +1396,76 @@ ModelInstanceState::ReadOutputTensors(
     ov::Tensor output_tensor = infer_request_.get_tensor(name);
     std::vector<int64_t> output_shape =
         ConvertToSignedShape(output_tensor.get_shape());
+    ov::element::Type dtype = output_tensor.get_element_type();
+    std::string dtype_str = OpenVINOElementToModelConfigDataType(dtype);
+    const TRITONSERVER_DataType datatype = ConvertFromOpenVINOElement(dtype);
+    std::string output_shape_str = "[";
+    std::string value = "";
+    size_t len = output_tensor.get_byte_size();
+    size_t total_count = 1;
+    for ( auto it : output_shape) {
+        total_count *= it;
+        output_shape_str += std::to_string(it);
+        output_shape_str += ",";
+    }
+    output_shape_str += "]";
+    // size_t len0 = len / total_count;
+    const char* ptr = (const char*)output_tensor.data(ov::element::undefined);
 
+    if (datatype == TRITONSERVER_TYPE_BYTES) {
+      // char* ptr = (char*)output_tensor.data(ov::element::string);
+      // for (size_t i=0;i<total_count;i++) {
+      //     char tmp[1024] = {0};
+      //     memcpy(tmp, ptr, len0);
+      //     value += tmp;
+      //     value += ", ";
+      //     ptr+=len0;
+      // }
+
+      size_t tensor_offset = 0;
+      auto& response = (*responses)[0];
+      const size_t tensor_element_cnt = GetElementCount(output_shape);
+      value = std::to_string(tensor_element_cnt);
+      
+      // Only need an response tensor for requested outputs.
+      if (response != nullptr)  {
+        TRITONBACKEND_Output* response_output;
+        RESPOND_AND_SET_NULL_IF_ERROR(
+          &response,
+          TRITONBACKEND_ResponseOutput(
+              response, &response_output, name.c_str(), datatype,
+              output_shape.data(), output_shape.size()));
+        string_buffer.emplace_back(new std::string());
+        cuda_copy |= SetStringOutputBuffer(
+            output_tensor, &response, response_output, tensor_element_cnt,
+            tensor_offset, CudaStream(), string_buffer.back().get());
+      }
+      tensor_offset += tensor_element_cnt;
+    } else {
+      RETURN_IF_ERROR(ValidateOutputBatchSize(&output_shape));
+      // const char* ptr = (const char*)output_tensor.data(ov::element::undefined);
+      responder.ProcessTensor(name, datatype, output_shape,
+            ptr,TRITONSERVER_MEMORY_CPU, 0);
+      // for (size_t i=0;i<total_count;i++) {
+      //     float tmp;
+      //     size_t len1 = len0;
+      //     if (len0 < sizeof(float)) 
+      //         len1 = sizeof(float);
+      //     memcpy(&tmp, ptr, len1);
+      //     ptr += len0;
+      //     value += std::to_string(tmp);
+      //     value += ", ";
+      // }
+    }
+        
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
-        (std::string("output ") + name
-         + std::string(", shape_size:"
-                     + std::to_string(output_shape.size()) + " ["
-                     + std::to_string(output_shape[0]) + ","
-                     + std::to_string(output_shape[1]) + ","
-                     + std::to_string(output_shape[2]) + ",...], "
-                     )).c_str());
-
-    RETURN_IF_ERROR(ValidateOutputBatchSize(&output_shape));
-
-    responder.ProcessTensor(
-        name, ConvertFromOpenVINOElement(output_tensor.get_element_type()),
-        output_shape, (const char*)output_tensor.data(ov::element::undefined),
-        TRITONSERVER_MEMORY_CPU, 0);
+        (std::string("responses size:") + std::string(std::to_string(responses->size()))
+        + std::string(", output \"") + name
+        + std::string("\", dtype:") + dtype_str
+        + std::string(", shape_size:") + output_shape_str
+        + std::string(", len:" + std::to_string(len)) 
+        + std::string(", value:") + value).c_str());
   }
 
   // Finalize and wait for any pending buffer copies.

@@ -1338,12 +1338,14 @@ SetStringOutputBuffer(
   // a 4-byte length followed by the string itself with no
   // null-terminator.
   serialized->clear();
-  size_t len = tensor.get_byte_size() / tensor_element_count;
-  const char* cstr =  (const char*)tensor.data();
+  // size_t len = tensor.get_byte_size() / tensor_element_count;
+  // const char* cstr =  (const char*)tensor.data();
+  std::string* data = tensor.data<std::string>();
   for (size_t e = 0; e < tensor_element_count; ++e) {
+    size_t len = data[e].length();
     serialized->append(reinterpret_cast<const char*>(&len), sizeof(uint32_t));
     if (len > 0) {
-      serialized->append(cstr + e * len, len);
+      serialized->append(data[e].c_str(), len);
     }
   }
 
@@ -1399,33 +1401,12 @@ ModelInstanceState::ReadOutputTensors(
     ov::element::Type dtype = output_tensor.get_element_type();
     std::string dtype_str = OpenVINOElementToModelConfigDataType(dtype);
     const TRITONSERVER_DataType datatype = ConvertFromOpenVINOElement(dtype);
-    std::string output_shape_str = "[";
-    std::string value = "";
-    size_t len = output_tensor.get_byte_size();
-    size_t total_count = 1;
-    for ( auto it : output_shape) {
-        total_count *= it;
-        output_shape_str += std::to_string(it);
-        output_shape_str += ",";
-    }
-    output_shape_str += "]";
-    // size_t len0 = len / total_count;
-    const char* ptr = (const char*)output_tensor.data(ov::element::undefined);
 
+    
     if (datatype == TRITONSERVER_TYPE_BYTES) {
-      // char* ptr = (char*)output_tensor.data(ov::element::string);
-      // for (size_t i=0;i<total_count;i++) {
-      //     char tmp[1024] = {0};
-      //     memcpy(tmp, ptr, len0);
-      //     value += tmp;
-      //     value += ", ";
-      //     ptr+=len0;
-      // }
-
       size_t tensor_offset = 0;
       auto& response = (*responses)[0];
       const size_t tensor_element_cnt = GetElementCount(output_shape);
-      value = std::to_string(tensor_element_cnt);
       
       // Only need an response tensor for requested outputs.
       if (response != nullptr)  {
@@ -1443,29 +1424,19 @@ ModelInstanceState::ReadOutputTensors(
       tensor_offset += tensor_element_cnt;
     } else {
       RETURN_IF_ERROR(ValidateOutputBatchSize(&output_shape));
-      // const char* ptr = (const char*)output_tensor.data(ov::element::undefined);
+      const char* ptr = (const char*)output_tensor.data(ov::element::undefined);
       responder.ProcessTensor(name, datatype, output_shape,
             ptr,TRITONSERVER_MEMORY_CPU, 0);
-      // for (size_t i=0;i<total_count;i++) {
-      //     float tmp;
-      //     size_t len1 = len0;
-      //     if (len0 < sizeof(float)) 
-      //         len1 = sizeof(float);
-      //     memcpy(&tmp, ptr, len1);
-      //     ptr += len0;
-      //     value += std::to_string(tmp);
-      //     value += ", ";
-      // }
     }
         
     LOG_MESSAGE(
         TRITONSERVER_LOG_INFO,
         (std::string("responses size:") + std::string(std::to_string(responses->size()))
         + std::string(", output \"") + name
-        + std::string("\", dtype:") + dtype_str
-        + std::string(", shape_size:") + output_shape_str
-        + std::string(", len:" + std::to_string(len)) 
-        + std::string(", value:") + value).c_str());
+        + std::string("\", dtype:") + dtype_str).c_str());
+        // + std::string(", shape_size:") + output_shape_str
+        // + std::string(", len:" + std::to_string(len)) 
+        // + std::string(", value:") + value).c_str());
   }
 
   // Finalize and wait for any pending buffer copies.

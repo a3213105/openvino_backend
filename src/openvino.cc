@@ -273,14 +273,34 @@ ModelState::ParseParameters(const std::string& device)
     if (device == "CPU") {
       config_[device] = {};
       auto& device_config = config_.at(device);
-      RETURN_IF_ERROR(
-          ParseParameter("INFERENCE_NUM_THREADS", params, &device_config));
-      RETURN_IF_ERROR(
-          ParseParameter("COMPILATION_NUM_THREADS", params, &device_config));
-      RETURN_IF_ERROR(ParseParameter("HINT_BF16", params, &device_config));
-      RETURN_IF_ERROR(ParseParameter("NUM_STREAMS", params, &device_config));
-      RETURN_IF_ERROR(
-          ParseParameter("PERFORMANCE_HINT", params, &device_config));
+      auto error = ParseParameter("INFERENCE_NUM_THREADS", params, &device_config);
+      if (error != nullptr) {
+          device_config.push_back(ov::inference_num_threads(0));
+      }
+      error = ParseParameter("COMPILATION_NUM_THREADS", params, &device_config);
+      if (error != nullptr) {
+          //device_config.push_back();
+      }
+      error = ParseParameter("HINT_BF16", params, &device_config);
+      if (error != nullptr) {
+          device_config.push_back(ov::hint::inference_precision(ov::element::f32));
+      }
+      error = ParseParameter("NUM_STREAMS", params, &device_config);
+      if (error != nullptr) {
+          device_config.push_back(ov::streams::num(1));
+      }
+      error = ParseParameter("PERFORMANCE_HINT", params, &device_config);
+      if (error != nullptr) {
+	  device_config.push_back(ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+      }
+//      RETURN_IF_ERROR(
+//          ParseParameter("INFERENCE_NUM_THREADS", params, &device_config));
+//      RETURN_IF_ERROR(
+//          ParseParameter("COMPILATION_NUM_THREADS", params, &device_config));
+//      RETURN_IF_ERROR(ParseParameter("HINT_BF16", params, &device_config));
+//      RETURN_IF_ERROR(ParseParameter("NUM_STREAMS", params, &device_config));
+//      RETURN_IF_ERROR(
+//          ParseParameter("PERFORMANCE_HINT", params, &device_config));
     }
   }
 
@@ -339,8 +359,13 @@ ModelState::ParseParameter(
     std::pair<std::string, ov::Any> ov_property;
     RETURN_IF_ERROR(ParseParameterHelper(mkey, &value, &ov_property));
     device_config->push_back(ov_property);
+    return nullptr;
+  } else {
+    return TRITONSERVER_ErrorNew(
+        TRITONSERVER_ERROR_INTERNAL,
+        (std::string("Can not read parameter ") + mkey )
+            .c_str());
   }
-  return nullptr;
 }
 
 TRITONSERVER_Error*
@@ -373,11 +398,12 @@ ModelState::ParseParameterHelper(
     if (value->compare("yes") == 0) {
       *ov_property = ov::hint::inference_precision(ov::element::bf16);
     } else {
-      return TRITONSERVER_ErrorNew(
-          TRITONSERVER_ERROR_INVALID_ARG,
-          (std::string("expected the parameter '") + mkey +
-           "' to be YES, got " + *value)
-              .c_str());
+      *ov_property = ov::hint::inference_precision(ov::element::f32);
+     // return TRITONSERVER_ErrorNew(
+     //     TRITONSERVER_ERROR_INVALID_ARG,
+     //     (std::string("expected the parameter '") + mkey +
+     //      "' to be YES, got " + *value)
+     //         .c_str());
     }
   } else if (mkey.compare("NUM_STREAMS") == 0) {
     if (value->compare("auto") == 0) {
@@ -428,6 +454,9 @@ ModelState::ConfigureOpenvinoCore()
     std::string device_name = item.first;
     std::vector<std::pair<std::string, ov::Any>> properties = item.second;
     for (auto& property : properties) {
+          LOG_MESSAGE(
+        TRITONSERVER_LOG_INFO,
+        (std::string("### property:") + property.first + std::string(", value:") + property.second.as<std::string>()).c_str());
       RETURN_IF_OPENVINO_ERROR(
           ov_core_.set_property(device_name, property),
           "configuring openvino core");
@@ -461,6 +490,24 @@ ModelState::LoadModel(
   RETURN_IF_OPENVINO_ASSIGN_ERROR(
       compiled_model_[device],
       ov_core_.compile_model(ov_model_, device, property), "loading model");
+
+  auto supported_properties = compiled_model_[device].get_property(ov::supported_properties);
+  for (const auto& cfg : supported_properties) {
+      if (cfg == ov::supported_properties)
+          continue;
+      auto prop = compiled_model_[device].get_property(cfg);
+      if (cfg == ov::device::properties) {
+          auto devices_properties = prop.as<ov::AnyMap>();
+          for (auto& item : devices_properties) {
+              LOG_MESSAGE(TRITONSERVER_LOG_INFO, (std::string("### devices_properties=") + item.first ).c_str());
+	      for (auto& item2 : item.second.as<ov::AnyMap>()) {
+                  LOG_MESSAGE(TRITONSERVER_LOG_INFO, (std::string("###    ") + item.first + std::string(": ") + item2.second.as<std::string>() ).c_str());
+	      }
+          }
+      } else {
+	  LOG_MESSAGE(TRITONSERVER_LOG_INFO, (std::string("###    ") + cfg + std::string(": ") + prop.as<std::string>() ).c_str());
+      }
+  }
 
   return nullptr;  // success
 }

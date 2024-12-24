@@ -1256,9 +1256,19 @@ ModelInstanceState::Infer(
     std::vector<TRITONBACKEND_Response*>* responses,
     const uint32_t response_count)
 {
-  RETURN_IF_OPENVINO_ERROR(infer_request_.start_async(), "running inference");
-  infer_request_.wait();
-
+  try {
+    RETURN_IF_OPENVINO_ERROR(infer_request_.start_async(), "running inference");
+    infer_request_.wait();
+  }
+  catch (const ov::Exception& e) {
+    return TRITONSERVER_ErrorNew(
+        TRITONSERVER_ERROR_INTERNAL,
+        (std::string("ModelInstanceState::Infer ov::Exception: ") + e.what()).c_str());
+  }
+  catch (...) {
+    return TRITONSERVER_ErrorNew(
+        TRITONSERVER_ERROR_INTERNAL, "ModelInstanceState::Infer exception");
+  }
   return nullptr;
 }
 
